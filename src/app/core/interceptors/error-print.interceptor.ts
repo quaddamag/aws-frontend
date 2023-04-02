@@ -1,13 +1,14 @@
 import { Injectable } from '@angular/core';
 import {
+  HttpErrorResponse,
   HttpEvent,
   HttpHandler,
   HttpInterceptor,
   HttpRequest,
+  HttpStatusCode,
 } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { catchError, Observable, throwError } from 'rxjs';
 import { NotificationService } from '../notification.service';
-import { tap } from 'rxjs/operators';
 
 @Injectable()
 export class ErrorPrintInterceptor implements HttpInterceptor {
@@ -18,15 +19,23 @@ export class ErrorPrintInterceptor implements HttpInterceptor {
     next: HttpHandler
   ): Observable<HttpEvent<unknown>> {
     return next.handle(request).pipe(
-      tap({
-        error: () => {
-          const url = new URL(request.url);
+      catchError((error: unknown) => {
+        const url = new URL(request.url);
+        let errorMessage = `Request to "${url.pathname}" failed. Check the console for the details`;
 
-          this.notificationService.showError(
-            `Request to "${url.pathname}" failed. Check the console for the details`,
-            0
-          );
-        },
+        if (error instanceof HttpErrorResponse) {
+          if (error.status === HttpStatusCode.Unauthorized) {
+            errorMessage = 'Missing user credentials';
+          }
+
+          if (error.status === HttpStatusCode.Forbidden) {
+            errorMessage = 'Incorrect username or password';
+          }
+        }
+
+        this.notificationService.showError(errorMessage, 0);
+
+        return throwError(error);
       })
     );
   }
